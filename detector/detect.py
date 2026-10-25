@@ -60,8 +60,12 @@ def parse_time(month, day, clock, now):
     return ts
 
 
-def read_events(path):
-    """Read the log and keep only what the rules need.
+def parse_lines(lines):
+    """Turn log lines into the data the rules need.
+
+    `lines` can be anything you can loop over that gives strings: an open
+    file, or a list of lines already in memory (that's what the dashboard
+    passes in).
 
     Returns:
         failures: dict mapping ip -> list of timestamps of failed logins
@@ -73,32 +77,37 @@ def read_events(path):
     accepted = []
     skipped = 0
 
-    with open(path) as f:
-        for line in f:
-            m = LINE_RE.match(line)
-            if not m:
-                skipped += 1
-                continue
+    for line in lines:
+        m = LINE_RE.match(line)
+        if not m:
+            skipped += 1
+            continue
 
-            ts = parse_time(m["month"], m["day"], m["clock"], now)
-            message = m["message"]
+        ts = parse_time(m["month"], m["day"], m["clock"], now)
+        message = m["message"]
 
-            # Unpack "message repeated N times: [ ... ]" so each copy counts
-            repeats = 1
-            rep = REPEAT_RE.match(message)
-            if rep:
-                repeats, message = int(rep["n"]), rep["inner"]
+        # Unpack "message repeated N times: [ ... ]" so each copy counts
+        repeats = 1
+        rep = REPEAT_RE.match(message)
+        if rep:
+            repeats, message = int(rep["n"]), rep["inner"]
 
-            failed = FAILED_RE.search(message)
-            if failed:
-                failures[failed["ip"]].extend([ts] * repeats)
-                continue
+        failed = FAILED_RE.search(message)
+        if failed:
+            failures[failed["ip"]].extend([ts] * repeats)
+            continue
 
-            ok = ACCEPTED_RE.search(message)
-            if ok:
-                accepted.append((ts, ok["user"], ok["ip"]))
+        ok = ACCEPTED_RE.search(message)
+        if ok:
+            accepted.append((ts, ok["user"], ok["ip"]))
 
     return failures, accepted, skipped
+
+
+def read_events(path):
+    """Same as parse_lines, but reads straight from a log file."""
+    with open(path) as f:
+        return parse_lines(f)
 
 
 # ---------------------------------------------------------------------------
