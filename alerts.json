@@ -1,0 +1,54 @@
+[
+  {
+    "rule": "ssh_bruteforce",
+    "title": "SSH brute force from 192.0.2.110",
+    "severity": "high",
+    "source_ip": "192.0.2.110",
+    "failed_attempts": 28,
+    "first_seen": "2026-10-23T00:22:09",
+    "last_seen": "2026-10-23T00:22:49",
+    "tags": [
+      "ssh",
+      "brute-force"
+    ]
+  },
+  {
+    "rule": "ssh_compromise",
+    "title": "Successful login as 'deploy' from brute-forcing IP 192.0.2.110",
+    "severity": "critical",
+    "source_ip": "192.0.2.110",
+    "user": "deploy",
+    "first_seen": "2026-10-23T00:22:51",
+    "last_seen": "2026-10-23T00:22:51",
+    "tags": [
+      "ssh",
+      "compromise"
+    ]
+  },
+  {
+    "rule": "ssh_bruteforce",
+    "title": "SSH brute force from 198.51.100.14",
+    "severity": "high",
+    "source_ip": "198.51.100.14",
+    "failed_attempts": 32,
+    "first_seen": "2026-10-23T14:07:59",
+    "last_seen": "2026-10-23T14:08:40",
+    "tags": [
+      "ssh",
+      "brute-force"
+    ]
+  },
+  {
+    "rule": "ssh_bruteforce",
+    "title": "SSH brute force from 198.51.100.112",
+    "severity": "high",
+    "source_ip": "198.51.100.112",
+    "failed_attempts": 72,
+    "first_seen": "2026-10-23T14:55:00",
+    "last_seen": "2026-10-23T14:56:44",
+    "tags": [
+      "ssh",
+      "brute-force"
+    ]
+  }
+]
