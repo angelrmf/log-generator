@@ -86,7 +86,7 @@ def fresh_attacker_ip():
     attacker, which quietly makes the answer key wrong.
     """
     if len(used_ips) >= IP_POOL_SIZE:
-        sys.exit("Ran out of fake IP addresses. Try a lower --noise.")
+        raise ValueError("Ran out of fake IP addresses. Try less scanner noise.")
     while True:
         ip = f"{random.choice(ATTACKER_NETS)}.{random.randint(1, 254)}"
         if ip not in used_ips:
@@ -300,9 +300,9 @@ def place_attack(builder, compromise, start, end):
     duration = max(e[0] for e in events) - base
     room = int(((end - start) - duration).total_seconds()) - 60
     if room < 0:
-        sys.exit(f"--hours is too short for a '{info['type']}' attack, which lasts "
-                 f"about {duration.total_seconds() / 3600:.1f} hours. "
-                 "Try a bigger --hours.")
+        raise ValueError(f"The time range is too short for a '{info['type']}' attack, "
+                         f"which lasts about {duration.total_seconds() / 3600:.1f} hours. "
+                         "Try more hours.")
     shift = (start - base) + timedelta(seconds=random.randint(0, room))
     events = [(ts + shift, pid, msg) for ts, pid, msg in events]
     info["start"] = min(e[0] for e in events)
@@ -330,6 +330,61 @@ def print_answer_key(attacks):
         print(f"    Why it's tricky: {a['why']}")
 
 
+def generate(difficulty="easy", hours=24, logins=None, noise=None, attacks=None,
+             compromise=True, seed=None):
+    """Build a fake log in memory. This is what the dashboard calls.
+
+    Returns (lines, answer_key):
+        lines:      list of log lines (strings, without a trailing newline)
+        answer_key: list of attack dictionaries, oldest first
+    Raises ValueError for settings that can't work, e.g. too few hours.
+    """
+    if difficulty not in LEVELS:
+        raise ValueError(f"Unknown difficulty '{difficulty}'. "
+                         f"Choose from: {', '.join(LEVELS)}.")
+    if hours < 1:
+        raise ValueError("hours must be at least 1.")
+
+    random.seed(seed)    # seed=None means "different every time"
+    used_ips.clear()     # forget IPs from any previous run
+
+    level = LEVELS[difficulty]
+    logins = level["logins"] if logins is None else logins
+    noise = level["noise"] if noise is None else noise
+    count = len(level["attacks"]) if attacks is None else attacks
+
+    if level["remote_worker"]:
+        used_ips.add(REMOTE_WORKER[1])   # keep scanners off the remote worker's IP
+
+    end = datetime.now().replace(microsecond=0)
+    start = end - timedelta(hours=hours)
+
+    def random_time():
+        return start + timedelta(seconds=random.randint(0, hours * 3600))
+
+    events = []
+    for _ in range(logins):
+        events += normal_session(random_time(), level["typo_rate"], level["remote_worker"])
+    for _ in range(noise):
+        events += scanner_probe(random_time())
+
+    answer_key = []
+    for i in range(count):
+        kind = level["attacks"][i % len(level["attacks"])]   # cycle if asked for more
+        burst, info = place_attack(ATTACKS[kind], compromise and i == 0, start, end)
+        events += burst
+        answer_key.append(info)
+
+    # Sessions still open "now" lose their closing line, just like a real
+    # live log. Then sort by time (stable, so same-second lines keep order).
+    events = [e for e in events if e[0] <= end]
+    events.sort(key=lambda e: e[0])
+
+    lines = [format_line(ts, pid, message) for ts, pid, message in events]
+    answer_key.sort(key=lambda a: a["start"])
+    return lines, answer_key
+
+
 def main():
     parser = argparse.ArgumentParser(description="Generate fake SSH auth.log lines.")
     parser.add_argument("-d", "--difficulty", choices=LEVELS, default="easy",
@@ -350,50 +405,20 @@ def main():
                         help="random seed, for repeatable output")
     args = parser.parse_args()
 
-    if args.hours < 1:
-        sys.exit("--hours must be at least 1.")
-    if args.seed is not None:
-        random.seed(args.seed)
-
-    level = LEVELS[args.difficulty]
-    logins = level["logins"] if args.logins is None else args.logins
-    noise = level["noise"] if args.noise is None else args.noise
-    count = len(level["attacks"]) if args.attacks is None else args.attacks
-
-    if level["remote_worker"]:
-        used_ips.add(REMOTE_WORKER[1])   # keep scanners off the remote worker's IP
-
-    end = datetime.now().replace(microsecond=0)
-    start = end - timedelta(hours=args.hours)
-
-    def random_time():
-        return start + timedelta(seconds=random.randint(0, args.hours * 3600))
-
-    events = []
-    for _ in range(logins):
-        events += normal_session(random_time(), level["typo_rate"], level["remote_worker"])
-    for _ in range(noise):
-        events += scanner_probe(random_time())
-
-    attacks = []
-    for i in range(count):
-        kind = level["attacks"][i % len(level["attacks"])]   # cycle if --attacks is bigger
-        compromise = (i == 0 and not args.no_compromise)
-        burst, info = place_attack(ATTACKS[kind], compromise, start, end)
-        events += burst
-        attacks.append(info)
-
-    # Sessions still open "now" lose their closing line, just like a real
-    # live log. Then sort by time (stable, so same-second lines keep order).
-    events = [e for e in events if e[0] <= end]
-    events.sort(key=lambda e: e[0])
+    try:
+        lines, answer_key = generate(
+            difficulty=args.difficulty, hours=args.hours, logins=args.logins,
+            noise=args.noise, attacks=args.attacks,
+            compromise=not args.no_compromise, seed=args.seed)
+    except ValueError as err:
+        sys.exit(str(err))
 
     with open(args.output, "w") as f:
-        for ts, pid, message in events:
-            f.write(format_line(ts, pid, message) + "\n")
+        for line in lines:
+            f.write(line + "\n")
 
-    print(f"Wrote {len(events)} lines to {args.output} (difficulty: {args.difficulty})\n")
-    print_answer_key(attacks)
+    print(f"Wrote {len(lines)} lines to {args.output} (difficulty: {args.difficulty})\n")
+    print_answer_key(answer_key)
 
 
 if __name__ == "__main__":
