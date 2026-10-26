@@ -1,22 +1,13 @@
 #!/usr/bin/env python3
 """
-dashboard.py - a Streamlit dashboard for the SSH detection lab.
+dashboard.py -  dashboard for the SSH detection lab.
 
-Run it (from the folder that holds loggen.py and detect.py):
-    pip install streamlit
-    streamlit run dashboard.py
-
-How it fits together. Every time you touch a control, Streamlit reruns this
-whole file from the top:
 
     1. get a log  -> loggen.generate()  (or a log file you upload)
     2. parse it   -> detect.parse_lines()
     3. detect     -> detect.detect()  with the threshold and window sliders
     4. draw       -> numbers, charts, alerts table, answer key
 
-Generating a log only happens when you click the button. The log is kept in
-st.session_state, which survives the reruns, so moving a slider re-runs
-detection on the SAME log.
 """
 
 import json
