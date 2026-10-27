@@ -1,4 +1,4 @@
-# paper-tiger
+# log-generator
 
 A Python-based security lab for generating synthetic SSH authentication logs, testing detection logic, and exploring attacker behavior in a realistic simulated environment.
 
